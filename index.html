@@ -4,7 +4,9 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="color-scheme" content="dark light">
-<title>多人點歌房</title>
+<title>皮皮KTV 點歌房</title>
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="apple-touch-icon" href="logo.png">
 <style>
   /* ===== 主題色（預設深色，系統設為淺色時改淺色） ===== */
   :root {
@@ -131,7 +133,12 @@
     gap: 12px;
     margin: 0 28px 16px 0; /* 右邊留位置給連線狀態點 */
   }
-  .room-code { font-size: 24px; letter-spacing: 3px; font-variant-numeric: tabular-nums; }
+  .room-code { display: block; font-size: 24px; line-height: 1.2; letter-spacing: 3px; font-variant-numeric: tabular-nums; }
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .logo { width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0; }
+  .home-logo { display: block; width: 140px; height: 140px; border-radius: 50%; margin: 24px auto 0; }
+  #screen-home h1 { text-align: center; margin-top: 12px; }
+  #screen-home h1 + .muted { text-align: center; }
 
   .host-grid { display: block; }
   @media (min-width: 900px) {
@@ -212,6 +219,10 @@
   .badge { font-size: 12px; padding: 1px 8px; border-radius: 99px; flex-shrink: 0; }
   .badge.host { background: var(--accent); color: var(--accent-text); }
   .badge.admin { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
+  .list > li.subhead { color: var(--muted); font-size: 13px; padding-top: 14px; border-top: 1px dashed var(--border); }
+  .member.past .member-name { color: var(--muted); }
+  .past-status { font-size: 12px; color: var(--muted); }
+  .past-status.kicked { color: var(--danger); }
 
   .setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
   .setting input[type="number"] { width: 90px; }
@@ -268,6 +279,7 @@
 <main>
   <!-- ===== 首頁 ===== -->
   <section id="screen-home" class="screen" hidden>
+    <img class="home-logo" src="logo.png" alt="皮皮KTV">
     <h1>多人點歌房</h1>
     <p class="muted">房主負責播放，大家用自己的手機點歌。</p>
     <p id="home-msg" class="notice-box" hidden></p>
@@ -289,7 +301,10 @@
   <!-- ===== 房主房間頁 ===== -->
   <section id="screen-host" class="screen" hidden>
     <header class="room-header">
-      <div><span class="label">房號</span> <strong class="room-code" data-code></strong></div>
+      <div class="brand">
+        <img class="logo" src="logo.png" alt="皮皮KTV">
+        <div><span class="label">房號</span><strong class="room-code" data-code></strong></div>
+      </div>
       <button id="btn-close-room" class="danger">關閉房間</button>
     </header>
     <div class="host-grid">
@@ -351,7 +366,10 @@
   <!-- ===== 成員房間頁 ===== -->
   <section id="screen-member" class="screen" hidden>
     <header class="room-header">
-      <div><span class="label">房號</span> <strong class="room-code" data-code></strong></div>
+      <div class="brand">
+        <img class="logo" src="logo.png" alt="皮皮KTV">
+        <div><span class="label">房號</span><strong class="room-code" data-code></strong></div>
+      </div>
       <button id="btn-leave">離開</button>
     </header>
     <div id="member-banner" class="banner" hidden></div>
@@ -605,22 +623,38 @@ function renderQueue(ul, room, viewer) {
   ul.replaceChildren(...(items.length ? items : [h('li', { class: 'empty' }, '佇列是空的')]));
 }
 
+const PAST_LABEL = { left: '已離開', timeout: '斷線逾時', kicked: '已踢出', unbanned: '已恢復，可重新加入' };
+
 function renderMembers(ul, room, viewer, hostControls) {
   const order = { host: 0, admin: 1, member: 2 };
   const list = [...room.members].sort((a, b) => order[a.role] - order[b.role] || (b.online - a.online));
-  ul.replaceChildren(...list.map(m => h('li', { class: 'member' + (m.online ? '' : ' offline') },
+  const current = list.map(m => h('li', { class: 'member' + (m.online ? '' : ' offline') },
     h('span', { class: 'dot ' + (m.online ? 'on' : 'off') }),
     h('span', { class: 'member-name' }, m.name, m.memberId === viewer.memberId ? '（我）' : ''),
     ROLE_LABEL[m.role] && h('span', { class: 'badge ' + m.role }, ROLE_LABEL[m.role]),
     !m.online && h('span', { class: 'muted small' }, '離線'),
     hostControls && m.role !== 'host' && h('span', { class: 'actions' },
       h('button', { class: 'sm', onclick: () => hostToggleAdmin(m.memberId) }, m.role === 'admin' ? '取消管理員' : '設為管理員'),
-      h('button', { class: 'sm danger', onclick: () => hostKick(m.memberId) }, '踢出')))));
+      h('button', { class: 'sm danger', onclick: () => hostKick(m.memberId) }, '踢出'))));
+
+  // F4a：曾經加入、但目前不在列表上的人（主動離開、斷線逾時、被踢出）
+  const past = room.pastMembers || [];
+  const pastItems = past.map(p => h('li', { class: 'member past' },
+    h('span', { class: 'dot off' }),
+    h('span', { class: 'member-name' }, p.name, p.memberId === viewer.memberId ? '（我）' : ''),
+    h('span', { class: 'past-status' + (p.status === 'kicked' ? ' kicked' : '') }, PAST_LABEL[p.status] || '已離開'),
+    hostControls && p.status === 'kicked' && h('span', { class: 'actions' },
+      h('button', { class: 'sm', onclick: () => hostUnban(p.memberId) }, '恢復'))));
+
+  ul.replaceChildren(...current,
+    ...(pastItems.length ? [h('li', { class: 'subhead' }, `曾經加入（${pastItems.length}）`), ...pastItems] : []));
 }
 
 function memberCountText(room) {
   const online = room.members.filter(m => m.online).length;
-  return `${online} 人在線` + (online < room.members.length ? `，${room.members.length - online} 人離線` : '');
+  const offline = room.members.length - online;
+  const past = (room.pastMembers || []).length;
+  return `${online} 人在線` + (offline ? `，${offline} 人離線` : '') + (past ? `，${past} 人已離開` : '');
 }
 
 // 點歌框：解析連結 → 取得歌名 → 交給 submit(videoId, title)
@@ -675,6 +709,15 @@ function newMemberId() {
   return id;
 }
 
+// F4a：曾經加入、目前不在 members 裡的人，由 identities 推算（最近離開的排前面）
+function pastMembersOf(room) {
+  const current = new Set(room.members.map(m => m.memberId));
+  return Object.values(room.identities)
+    .filter(i => i.role !== 'host' && !current.has(i.memberId))
+    .sort((a, b) => (b.leftAt || 0) - (a.leftAt || 0))
+    .map(i => ({ memberId: i.memberId, name: i.name || '（未知）', status: i.leftReason || 'left' }));
+}
+
 /* 7.2：送給成員的狀態一律經過白名單過濾，不含 deviceId、banned、identities、peerId */
 function toPublicRoom(room) {
   return {
@@ -683,6 +726,7 @@ function toPublicRoom(room) {
     members: room.members.map(m => ({
       memberId: m.memberId, name: m.name, role: m.role, online: m.online,
     })),
+    pastMembers: pastMembersOf(room),
     nowPlaying: room.nowPlaying,
     isPaused: room.isPaused,
     volume: room.volume,
@@ -724,7 +768,7 @@ function hostCreate(name) {
     queue: [],
     history: [],
     banned: [],
-    identities: { [DEVICE_ID]: { memberId, role: 'host' } },
+    identities: { [DEVICE_ID]: { memberId, role: 'host', name } },
   };
   startHost(false);
 }
@@ -746,7 +790,7 @@ function hostRestore(saved) {
     if (m.role === 'host') {
       m.deviceId = DEVICE_ID;
       m.online = true;
-      room.identities[DEVICE_ID] = { memberId: m.memberId, role: 'host' };
+      room.identities[DEVICE_ID] = { memberId: m.memberId, role: 'host', name: m.name };
     } else {
       m.online = false; // 成員要重新連線才算在線
     }
@@ -878,9 +922,18 @@ function startOfflineTimer(deviceId) {
     if (m && !m.online) {
       // 逾時才移除；歌曲留在佇列，identities 也保留（F22）
       H.room.members = H.room.members.filter(x => x !== m);
+      markLeft(deviceId, 'timeout');
       broadcast();
     }
   }, OFFLINE_KEEP_MS));
+}
+
+// F4a：記錄離開原因，供「曾經加入」列表顯示
+function markLeft(deviceId, reason) {
+  const identity = H.room.identities[deviceId];
+  if (!identity) return;
+  identity.leftReason = reason;
+  identity.leftAt = Date.now();
 }
 
 function clearOfflineTimer(deviceId) {
@@ -949,6 +1002,9 @@ function handleJoin(conn, entry, msg) {
     identity = { memberId: newMemberId(), role: 'member' };
     room.identities[deviceId] = identity;
   }
+  identity.name = name;
+  delete identity.leftReason; // 回到房間，不再列在「曾經加入」
+  delete identity.leftAt;
   let m = findByDevice(deviceId);
   if (!m) {
     m = { memberId: identity.memberId, deviceId, peerId: null, name, role: identity.role, online: true };
@@ -1030,6 +1086,7 @@ function handleRequest(sender, msg, conn) {
     case 'leave': // F5
       if (sender.role === 'host') return;
       removeMember(sender.deviceId);
+      markLeft(sender.deviceId, 'left');
       dropConnection(sender.deviceId);
       return broadcast();
   }
@@ -1066,7 +1123,9 @@ function setRole(memberId, role) { // F19：members 與 identities 一起更新
   const m = findMember(memberId);
   if (!m || m.role === 'host') return;
   m.role = role;
-  H.room.identities[m.deviceId] = { memberId: m.memberId, role };
+  const identity = H.room.identities[m.deviceId];
+  if (identity) identity.role = role;
+  else H.room.identities[m.deviceId] = { memberId: m.memberId, role, name: m.name };
   broadcast();
 }
 
@@ -1080,13 +1139,26 @@ function hostToggleAdmin(memberId) {
 function hostKick(memberId) { // F18
   const m = findMember(memberId);
   if (!m || m.role === 'host') return;
-  if (!confirm(`確定要踢出「${m.name}」嗎？\n對方點的未播歌曲會一併移除，並且無法再加入這個房間。`)) return;
+  if (!confirm(`確定要踢出「${m.name}」嗎？\n對方點的未播歌曲會一併移除，並且無法再加入這個房間（之後可在成員列表的「曾經加入」中恢復）。`)) return;
   const room = H.room;
   if (!room.banned.includes(m.deviceId)) room.banned.push(m.deviceId);
   room.queue = room.queue.filter(s => s.addedBy !== m.memberId);
   removeMember(m.deviceId);
+  markLeft(m.deviceId, 'kicked');
+  const identity = room.identities[m.deviceId];
+  if (identity) identity.role = 'member'; // 被踢出即失去管理員身分，恢復後以一般成員回來
   dropConnection(m.deviceId, { type: 'kicked' });
   toast(`已踢出 ${m.name}`);
+  broadcast();
+}
+
+function hostUnban(memberId) { // F18a：恢復被踢出的成員
+  const room = H.room;
+  const deviceId = Object.keys(room.identities).find(d => room.identities[d].memberId === memberId);
+  if (!deviceId || !room.banned.includes(deviceId)) return;
+  room.banned = room.banned.filter(d => d !== deviceId);
+  markLeft(deviceId, 'unbanned');
+  toast(`已恢復 ${room.identities[deviceId].name || '這位成員'}，對方可以重新加入了`);
   broadcast();
 }
 
@@ -1275,8 +1347,9 @@ function renderHost() {
   const viewer = { memberId: me.memberId, role: 'host', act: msg => handleRequest(hostMe(), msg, null) };
   renderQueue($('[data-queue]', root), room, viewer);
   $('[data-queue-count]', root).textContent = room.queue.length ? `${room.queue.length} 首` : '';
-  renderMembers($('[data-members]', root), room, viewer, true);
-  $('[data-member-count]', root).textContent = memberCountText(room);
+  const pub = toPublicRoom(room); // 含「曾經加入」名單
+  renderMembers($('[data-members]', root), pub, viewer, true);
+  $('[data-member-count]', root).textContent = memberCountText(pub);
 
   const maxInput = $('#set-max');
   if (document.activeElement !== maxInput) maxInput.value = room.settings.maxPerUser;
