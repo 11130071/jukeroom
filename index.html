@@ -1,0 +1,1630 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark light">
+<title>多人點歌房</title>
+<style>
+  /* ===== 主題色（預設深色，系統設為淺色時改淺色） ===== */
+  :root {
+    color-scheme: dark;
+    --bg: #111118;
+    --card: #1c1c26;
+    --card-2: #252532;
+    --text: #ececf2;
+    --muted: #9b9bab;
+    --border: #2e2e3c;
+    --input: #15151d;
+    --accent: #8b6cff;
+    --accent-text: #ffffff;
+    --danger: #ef5d62;
+    --ok: #3ccf8e;
+    --warn: #f5b13d;
+    --banner-bg: #3a2f12;
+    --banner-text: #ffd889;
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+      --bg: #f3f3f7;
+      --card: #ffffff;
+      --card-2: #f0f0f5;
+      --text: #1b1b24;
+      --muted: #6b6b7a;
+      --border: #e1e1ea;
+      --input: #ffffff;
+      --accent: #6d4aff;
+      --danger: #d93a40;
+      --ok: #1f9d63;
+      --warn: #c98400;
+      --banner-bg: #fff3d1;
+      --banner-text: #7a5200;
+    }
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: system-ui, -apple-system, "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  main {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: calc(16px + env(safe-area-inset-top)) 16px calc(96px + env(safe-area-inset-bottom));
+  }
+  body[data-screen="host"] main { max-width: 1200px; }
+  [hidden] { display: none !important; }
+
+  h1 { font-size: 28px; margin: 32px 0 4px; }
+  h2 { font-size: 16px; margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  .center { text-align: center; }
+  .label { color: var(--muted); font-size: 13px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 16px;
+    min-width: 0;
+  }
+  .stack { display: flex; flex-direction: column; gap: 12px; }
+  .row { display: flex; gap: 8px; }
+  .row > input { flex: 1; min-width: 0; }
+
+  /* ===== 表單元件 ===== */
+  input[type="text"], input[type="number"], input:not([type]) {
+    font: inherit;
+    font-size: 16px; /* 16px 以上 iOS 才不會自動放大 */
+    color: var(--text);
+    background: var(--input);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    width: 100%;
+    min-width: 0;
+  }
+  input:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field > span { font-size: 13px; color: var(--muted); }
+
+  button {
+    font: inherit;
+    color: var(--text);
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 8px 14px;
+    min-height: 42px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; }
+  button.danger { color: var(--danger); }
+  button.big { min-height: 50px; font-size: 17px; }
+  button.sm { min-height: 34px; padding: 4px 10px; font-size: 13px; }
+
+  .divider { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+  .divider::before, .divider::after { content: ""; flex: 1; height: 1px; background: var(--border); }
+
+  .notice-box {
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+  }
+
+  /* ===== 房間頁 ===== */
+  .room-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 0 28px 16px 0; /* 右邊留位置給連線狀態點 */
+  }
+  .room-code { font-size: 24px; letter-spacing: 3px; font-variant-numeric: tabular-nums; }
+
+  .host-grid { display: block; }
+  @media (min-width: 900px) {
+    .host-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  }
+
+  .share { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  .qr { background: #fff; padding: 8px; border-radius: 10px; line-height: 0; }
+  .qr img, .qr canvas { width: 148px; height: 148px; }
+  .share-info { flex: 1; min-width: 180px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+  .share-link { font-size: 13px; overflow-wrap: anywhere; color: var(--muted); }
+
+  .player-wrap {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 12px;
+  }
+  .player-wrap iframe, #yt-player { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .start-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: rgba(0, 0, 0, .72);
+    color: #fff;
+    text-align: center;
+    padding: 16px;
+  }
+  .start-overlay p { margin: 0; color: #ddd; }
+
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 12px; }
+  .volume { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 160px; color: var(--muted); font-size: 13px; }
+  .volume input { flex: 1; min-width: 0; accent-color: var(--accent); }
+
+  .np { display: flex; gap: 12px; align-items: center; }
+  .np .thumb { width: 120px; height: 68px; }
+  .np-info { min-width: 0; flex: 1; }
+  .np-state { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; }
+  .np-state.playing { background: color-mix(in srgb, var(--ok) 20%, transparent); color: var(--ok); }
+  .np-state.paused { background: color-mix(in srgb, var(--warn) 20%, transparent); color: var(--warn); }
+  .np-empty { margin: 0; }
+  #screen-host .np .thumb { display: none; } /* 房主端已經有播放器畫面 */
+
+  .add-form button { flex-shrink: 0; }
+  .hint { margin: 8px 0 0; font-size: 13px; color: var(--muted); }
+  .hint.warn { color: var(--warn); }
+
+  .list { list-style: none; margin: 0; padding: 0; }
+  .list > li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid var(--border); }
+  .list > li:first-child { border-top: 0; }
+  .list > li.empty { color: var(--muted); font-size: 14px; }
+  .thumb { width: 72px; height: 40px; object-fit: cover; border-radius: 6px; background: var(--card-2); flex-shrink: 0; }
+  .idx { width: 18px; text-align: right; color: var(--muted); font-size: 13px; flex-shrink: 0; }
+  .song-info { flex: 1; min-width: 0; }
+  .title {
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .song.mine .song-info .muted { color: var(--accent); }
+  .actions { display: flex; gap: 6px; flex-shrink: 0; margin-left: auto; }
+  .count { color: var(--muted); font-weight: 400; font-size: 13px; }
+
+  .member { flex-wrap: wrap; }
+  .member-name { overflow-wrap: anywhere; min-width: 0; }
+  .member.offline .member-name { color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot.on { background: var(--ok); }
+  .dot.off { background: var(--muted); }
+  .badge { font-size: 12px; padding: 1px 8px; border-radius: 99px; flex-shrink: 0; }
+  .badge.host { background: var(--accent); color: var(--accent-text); }
+  .badge.admin { background: color-mix(in srgb, var(--accent) 22%, transparent); color: var(--accent); }
+
+  .setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 0; }
+  .setting input[type="number"] { width: 90px; }
+  .setting input[type="checkbox"] { width: 22px; height: 22px; accent-color: var(--accent); }
+
+  .banner {
+    background: var(--banner-bg);
+    color: var(--banner-text);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 16px;
+    font-size: 14px;
+  }
+
+  /* ===== 連線狀態點與提示訊息 ===== */
+  .status-dot {
+    position: fixed;
+    top: calc(14px + env(safe-area-inset-top));
+    right: 14px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--muted);
+    box-shadow: 0 0 0 3px var(--bg);
+    z-index: 10;
+  }
+  .status-dot[data-state="off"] { display: none; }
+  .status-dot[data-state="green"] { background: var(--ok); }
+  .status-dot[data-state="yellow"] { background: var(--warn); animation: blink 1s infinite alternate; }
+  .status-dot[data-state="red"] { background: var(--danger); }
+  @keyframes blink { to { opacity: .35; } }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: calc(20px + env(safe-area-inset-bottom));
+    transform: translateX(-50%);
+    max-width: calc(100% - 32px);
+    background: var(--text);
+    color: var(--bg);
+    padding: 10px 16px;
+    border-radius: 12px;
+    font-size: 14px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, .3);
+    z-index: 20;
+    text-align: center;
+  }
+  .toast.error { background: var(--danger); color: #fff; }
+</style>
+</head>
+<body>
+<div id="status-dot" class="status-dot" data-state="off" role="status"></div>
+
+<main>
+  <!-- ===== 首頁 ===== -->
+  <section id="screen-home" class="screen" hidden>
+    <h1>多人點歌房</h1>
+    <p class="muted">房主負責播放，大家用自己的手機點歌。</p>
+    <p id="home-msg" class="notice-box" hidden></p>
+    <div class="card stack">
+      <label class="field">
+        <span>暱稱</span>
+        <input id="home-name" maxlength="20" autocomplete="nickname" placeholder="例如：小明">
+      </label>
+      <button id="btn-create" class="primary big">建立房間</button>
+      <div class="divider">或加入朋友的房間</div>
+      <div class="row">
+        <input id="home-code" maxlength="6" placeholder="6 碼房號" autocomplete="off" autocapitalize="characters" spellcheck="false">
+        <button id="btn-join" class="primary">加入</button>
+      </div>
+    </div>
+    <p class="muted small center">建議用筆電當房主並接上喇叭；建立房間後請保持網頁開啟。</p>
+  </section>
+
+  <!-- ===== 房主房間頁 ===== -->
+  <section id="screen-host" class="screen" hidden>
+    <header class="room-header">
+      <div><span class="label">房號</span> <strong class="room-code" data-code></strong></div>
+      <button id="btn-close-room" class="danger">關閉房間</button>
+    </header>
+    <div class="host-grid">
+      <div class="col">
+        <div class="card share">
+          <div id="qr" class="qr"></div>
+          <div class="share-info">
+            <div class="label">掃 QR Code 或開啟連結加入</div>
+            <div id="share-link" class="share-link"></div>
+            <button id="btn-copy" class="sm">複製連結</button>
+          </div>
+        </div>
+        <div class="card">
+          <div class="player-wrap">
+            <div id="yt-player"></div>
+            <div id="start-overlay" class="start-overlay">
+              <button id="btn-start" class="primary big">▶ 開始播放</button>
+              <p class="small">瀏覽器需要先點一下，才允許發出聲音</p>
+            </div>
+          </div>
+          <div data-np></div>
+          <div class="controls">
+            <button id="host-pause">暫停</button>
+            <button id="host-skip">跳過</button>
+            <label class="volume"><span>音量</span><input type="range" id="host-volume" min="0" max="100" step="1"></label>
+          </div>
+        </div>
+        <div class="card">
+          <h2>點歌</h2>
+          <form id="host-add" class="add-form row" autocomplete="off">
+            <input name="url" inputmode="url" placeholder="貼上 YouTube 連結" spellcheck="false">
+            <button class="primary">點歌</button>
+          </form>
+          <p class="hint warn" data-lock-hint hidden>已鎖定點歌（房主仍可點歌）</p>
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <h2>佇列 <span class="count" data-queue-count></span></h2>
+          <ul class="list" data-queue></ul>
+        </div>
+        <div class="card">
+          <h2>成員 <span class="count" data-member-count></span></h2>
+          <ul class="list" data-members></ul>
+        </div>
+        <div class="card">
+          <h2>房間設定</h2>
+          <label class="setting"><span>每人點歌上限（首）</span><input type="number" id="set-max" min="1" max="20" inputmode="numeric"></label>
+          <label class="setting"><span>鎖定點歌（暫停所有人點歌）</span><input type="checkbox" id="set-lock"></label>
+        </div>
+        <div class="card">
+          <h2>播放紀錄 <span class="count">最近 20 首</span></h2>
+          <ul class="list" id="history-list"></ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== 成員房間頁 ===== -->
+  <section id="screen-member" class="screen" hidden>
+    <header class="room-header">
+      <div><span class="label">房號</span> <strong class="room-code" data-code></strong></div>
+      <button id="btn-leave">離開</button>
+    </header>
+    <div id="member-banner" class="banner" hidden></div>
+    <div class="card">
+      <h2>正在播放</h2>
+      <div data-np></div>
+      <div class="controls" data-admin-controls hidden>
+        <button id="m-pause">暫停</button>
+        <button id="m-skip">跳過</button>
+        <label class="volume"><span>音量</span><input type="range" id="m-volume" min="0" max="100" step="1"></label>
+      </div>
+    </div>
+    <div class="card">
+      <h2>點歌</h2>
+      <form id="member-add" class="add-form row" autocomplete="off">
+        <input name="url" inputmode="url" placeholder="貼上 YouTube 連結" spellcheck="false">
+        <button class="primary">點歌</button>
+      </form>
+      <p class="hint warn" data-lock-hint hidden>房主已鎖定點歌</p>
+      <p class="hint" data-limit-hint></p>
+    </div>
+    <div class="card">
+      <h2>佇列 <span class="count" data-queue-count></span></h2>
+      <ul class="list" data-queue></ul>
+    </div>
+    <div class="card">
+      <h2>成員 <span class="count" data-member-count></span></h2>
+      <ul class="list" data-members></ul>
+    </div>
+  </section>
+</main>
+
+<div id="toast" class="toast" role="alert" hidden></div>
+
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+'use strict';
+
+/* =====================================================================
+ * 常數
+ * ===================================================================== */
+const PEER_PREFIX = 'jukeroom-';
+const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // 排除 0/O、1/I
+const RETRY_MS = 3000;                 // 重連間隔（F22、F24）
+const OFFLINE_KEEP_MS = 5 * 60 * 1000; // 斷線成員保留時間（F22）
+const HISTORY_MAX = 20;                // 播放紀錄數量（F14）
+const PING_MS = 5000;                  // 成員心跳間隔
+const MEMBER_TIMEOUT_MS = 15000;       // 成員端超過此時間沒收到房主訊息，視為斷線
+const HOST_TIMEOUT_MS = 20000;         // 房主端超過此時間沒收到成員訊息，視為斷線
+const CONNECT_TIMEOUT_MS = 10000;      // 建立連線的逾時
+const LS = {
+  device: 'jukeroom.deviceId',
+  name: 'jukeroom.name',
+  last: 'jukeroom.lastRoom',
+  host: 'jukeroom.hostRoom',
+  pos: 'jukeroom.hostPos',
+};
+const FLASH_KEY = 'jukeroom.flash';
+const ROLE_LABEL = { host: '房主', admin: '管理員' };
+
+/* =====================================================================
+ * 小工具
+ * ===================================================================== */
+const $ = (sel, root = document) => root.querySelector(sel);
+
+function randomString(len, chars = 'abcdefghijklmnopqrstuvwxyz0123456789') {
+  const bytes = crypto.getRandomValues(new Uint8Array(len));
+  let s = '';
+  for (const b of bytes) s += chars[b % chars.length];
+  return s;
+}
+
+// localStorage 可能被瀏覽器封鎖（例如部分無痕模式），所有存取都包在 try/catch
+function store(key, value) {
+  try {
+    if (value == null) localStorage.removeItem(key);
+    else localStorage.setItem(key, JSON.stringify(value));
+  } catch { /* 忽略 */ }
+}
+function load(key) {
+  try {
+    const v = localStorage.getItem(key);
+    return v == null ? null : JSON.parse(v);
+  } catch { return null; }
+}
+
+// 建立 DOM 元素；文字一律用 textContent 方式加入，避免 XSS
+function h(tag, props, ...children) {
+  const el = document.createElement(tag);
+  if (props) {
+    for (const [k, v] of Object.entries(props)) {
+      if (v == null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? '' : v);
+    }
+  }
+  for (const c of children.flat()) {
+    if (c == null || c === false) continue;
+    el.append(c instanceof Node ? c : String(c));
+  }
+  return el;
+}
+
+const isCode = s => typeof s === 'string' && new RegExp(`^[${CODE_CHARS}]{6}$`).test(s);
+const normalizeCode = s => String(s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const cleanName = s => String(s || '').replace(/\s+/g, ' ').trim().slice(0, 20);
+const sameName = (a, b) => a.trim().toLowerCase() === b.trim().toLowerCase();
+const cleanTitle = t => (typeof t === 'string' ? t.replace(/\s+/g, ' ').trim().slice(0, 150) : '');
+const isVideoId = id => typeof id === 'string' && /^[A-Za-z0-9_-]{11}$/.test(id);
+const isManager = role => role === 'host' || role === 'admin';
+const songTitle = s => s.title || s.videoId; // F7：歌名取得失敗時顯示影片 ID
+const baseUrl = () => location.href.split('#')[0];
+
+function genCode() {
+  return randomString(6, CODE_CHARS);
+}
+
+function getDeviceId() {
+  let id = load(LS.device);
+  if (typeof id !== 'string' || !/^[a-z0-9]{32}$/.test(id)) {
+    id = randomString(32);
+    store(LS.device, id);
+  }
+  return id;
+}
+const DEVICE_ID = getDeviceId(); // F21
+
+/* F6：解析 YouTube 連結，只接受三種格式 */
+function parseYouTubeId(text) {
+  const raw = String(text || '').trim();
+  const found = raw.match(/https?:\/\/\S+/i);           // 分享文字可能夾帶標題
+  let candidate = found ? found[0] : raw;
+  if (!/^https?:\/\//i.test(candidate)) candidate = 'https://' + candidate;
+  let url;
+  try { url = new URL(candidate); } catch { return null; }
+  const host = url.hostname.toLowerCase().replace(/^(www|m|music)\./, '');
+  let id = null;
+  if (host === 'youtu.be') {
+    id = url.pathname.split('/')[1];
+  } else if (host === 'youtube.com') {
+    if (url.pathname === '/watch') id = url.searchParams.get('v');
+    else if (url.pathname.startsWith('/shorts/')) id = url.pathname.split('/')[2];
+  }
+  return isVideoId(id) ? id : null;
+}
+
+/* 用 noembed 取得歌名，失敗回傳空字串 */
+async function fetchTitle(videoId) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 5000);
+  try {
+    const target = 'https://www.youtube.com/watch?v=' + videoId;
+    const res = await fetch('https://noembed.com/embed?url=' + encodeURIComponent(target), { signal: ctrl.signal });
+    const data = await res.json();
+    return cleanTitle(data && data.title);
+  } catch {
+    return '';
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/* =====================================================================
+ * 共用介面
+ * ===================================================================== */
+let mode = 'home'; // 'home' | 'host' | 'member'
+
+function showScreen(name) {
+  for (const s of document.querySelectorAll('.screen')) s.hidden = s.id !== 'screen-' + name;
+  document.body.dataset.screen = name;
+}
+
+function setStatus(state) {
+  const el = $('#status-dot');
+  el.dataset.state = state;
+  el.title = { green: '已連線', yellow: '重新連線中', red: '已斷線', off: '' }[state];
+  el.setAttribute('aria-label', el.title);
+}
+
+let toastTimer = null;
+function toast(message, kind = 'info') {
+  if (!message) return;
+  const el = $('#toast');
+  el.textContent = message;
+  el.className = 'toast ' + kind;
+  el.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.hidden = true; }, 2800);
+}
+
+// 回到首頁：用重新載入頁面的方式徹底清掉連線與播放器，訊息透過 sessionStorage 帶過去
+function goHome(message, keepCode) {
+  if (mode === 'member') {
+    M.active = false;
+    store(LS.last, null);
+    try { M.conn && M.conn.close(); } catch { /* 忽略 */ }
+    try { M.peer && M.peer.destroy(); } catch { /* 忽略 */ }
+  }
+  try { sessionStorage.setItem(FLASH_KEY, message || ''); } catch { /* 忽略 */ }
+  const code = keepCode && mode === 'member' ? M.code : null;
+  window.history.replaceState(null, '', baseUrl() + (code ? '#' + code : ''));
+  location.reload();
+}
+
+// 使用者剛拖過的滑桿，短時間內不被廣播覆蓋
+function setSlider(el, value) {
+  if (Date.now() - (el._touched || 0) > 1500) el.value = value;
+}
+
+function thumb(videoId) {
+  return h('img', {
+    class: 'thumb',
+    src: `https://img.youtube.com/vi/${encodeURIComponent(videoId)}/mqdefault.jpg`,
+    alt: '',
+    loading: 'lazy',
+  });
+}
+
+function renderNowPlaying(el, room, waitingText) {
+  const s = room && room.nowPlaying;
+  if (!s) {
+    const text = room && room.queue.length ? waitingText : '目前沒有歌曲，快來點歌！';
+    el.replaceChildren(h('p', { class: 'muted np-empty' }, text));
+    return;
+  }
+  el.replaceChildren(h('div', { class: 'np' },
+    thumb(s.videoId),
+    h('div', { class: 'np-info' },
+      h('span', { class: 'np-state ' + (room.isPaused ? 'paused' : 'playing') }, room.isPaused ? '暫停中' : '播放中'),
+      h('div', { class: 'title' }, songTitle(s)),
+      h('div', { class: 'muted small' }, '點歌：' + s.addedByName))));
+}
+
+// viewer = { memberId, role, act(msg) }
+function renderQueue(ul, room, viewer) {
+  const mgr = isManager(viewer.role);
+  const items = room.queue.map((s, i) => {
+    const mine = s.addedBy === viewer.memberId;
+    return h('li', { class: 'song' + (mine ? ' mine' : '') },
+      h('span', { class: 'idx' }, i + 1),
+      thumb(s.videoId),
+      h('div', { class: 'song-info' },
+        h('div', { class: 'title' }, songTitle(s)),
+        h('div', { class: 'muted small' }, s.addedByName + (mine ? '（我）' : ''))),
+      h('div', { class: 'actions' },
+        mgr && i > 0 && h('button', { class: 'sm', onclick: () => viewer.act({ type: 'playNext', uid: s.uid }) }, '插播'),
+        (mgr || mine) && h('button', { class: 'sm danger', onclick: () => viewer.act({ type: 'remove', uid: s.uid }) }, '刪除')));
+  });
+  ul.replaceChildren(...(items.length ? items : [h('li', { class: 'empty' }, '佇列是空的')]));
+}
+
+function renderMembers(ul, room, viewer, hostControls) {
+  const order = { host: 0, admin: 1, member: 2 };
+  const list = [...room.members].sort((a, b) => order[a.role] - order[b.role] || (b.online - a.online));
+  ul.replaceChildren(...list.map(m => h('li', { class: 'member' + (m.online ? '' : ' offline') },
+    h('span', { class: 'dot ' + (m.online ? 'on' : 'off') }),
+    h('span', { class: 'member-name' }, m.name, m.memberId === viewer.memberId ? '（我）' : ''),
+    ROLE_LABEL[m.role] && h('span', { class: 'badge ' + m.role }, ROLE_LABEL[m.role]),
+    !m.online && h('span', { class: 'muted small' }, '離線'),
+    hostControls && m.role !== 'host' && h('span', { class: 'actions' },
+      h('button', { class: 'sm', onclick: () => hostToggleAdmin(m.memberId) }, m.role === 'admin' ? '取消管理員' : '設為管理員'),
+      h('button', { class: 'sm danger', onclick: () => hostKick(m.memberId) }, '踢出')))));
+}
+
+function memberCountText(room) {
+  const online = room.members.filter(m => m.online).length;
+  return `${online} 人在線` + (online < room.members.length ? `，${room.members.length - online} 人離線` : '');
+}
+
+// 點歌框：解析連結 → 取得歌名 → 交給 submit(videoId, title)
+function bindAddForm(form, submit) {
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const input = form.elements.url;
+    const button = form.querySelector('button');
+    const videoId = parseYouTubeId(input.value);
+    if (!videoId) {
+      toast('請貼上 YouTube 影片連結（youtube.com/watch、youtu.be、youtube.com/shorts）', 'error');
+      return;
+    }
+    button.disabled = true;
+    try {
+      const title = await fetchTitle(videoId);
+      if (submit(videoId, title) !== false) input.value = '';
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
+/* =====================================================================
+ * 房主端：房主即伺服器
+ * ===================================================================== */
+const H = {
+  room: null,
+  peer: null,
+  peerOpenedOnce: false,
+  restoring: false,
+  closing: false,
+  retryTimer: null,
+  entries: new Map(),      // DataConnection → { deviceId | null, lastSeen }
+  active: new Map(),       // deviceId → 目前有效的 DataConnection
+  offlineTimers: new Map(),// deviceId → 移除斷線成員的計時器
+  player: null,
+  ytReady: false,
+  unlocked: false,         // 是否已按過「開始播放」
+  restorePos: 0,           // F24：恢復時從第幾秒繼續
+  qrCode: null,
+};
+
+const hostMe = () => H.room.members.find(m => m.role === 'host');
+const findMember = memberId => H.room.members.find(m => m.memberId === memberId);
+const findByDevice = deviceId => H.room.members.find(m => m.deviceId === deviceId);
+
+function newMemberId() {
+  const used = new Set(Object.values(H.room.identities).map(i => i.memberId));
+  let id;
+  do { id = randomString(10); } while (used.has(id));
+  return id;
+}
+
+/* 7.2：送給成員的狀態一律經過白名單過濾，不含 deviceId、banned、identities、peerId */
+function toPublicRoom(room) {
+  return {
+    code: room.code,
+    settings: { ...room.settings },
+    members: room.members.map(m => ({
+      memberId: m.memberId, name: m.name, role: m.role, online: m.online,
+    })),
+    nowPlaying: room.nowPlaying,
+    isPaused: room.isPaused,
+    volume: room.volume,
+    queue: room.queue,
+    history: room.history,
+  };
+}
+
+function send(conn, msg) {
+  try { if (conn && conn.open) conn.send(msg); } catch { /* 忽略 */ }
+}
+
+function persist() {
+  if (!H.closing) store(LS.host, H.room); // F24
+}
+
+function broadcast() {
+  persist();
+  const msg = { type: 'state', room: toPublicRoom(H.room) };
+  for (const conn of H.active.values()) send(conn, msg);
+  renderHost();
+}
+
+function notifyAll(message) {
+  toast(message);
+  for (const conn of H.active.values()) send(conn, { type: 'notice', message });
+}
+
+/* ---------- 建立 / 恢復房間 ---------- */
+function hostCreate(name) {
+  const memberId = randomString(10);
+  H.room = {
+    code: genCode(),
+    settings: { maxPerUser: 3, locked: false },
+    members: [{ memberId, deviceId: DEVICE_ID, peerId: null, name, role: 'host', online: true }],
+    nowPlaying: null,
+    isPaused: false,
+    volume: 70,
+    queue: [],
+    history: [],
+    banned: [],
+    identities: { [DEVICE_ID]: { memberId, role: 'host' } },
+  };
+  startHost(false);
+}
+
+function hostRestore(saved) {
+  if (!saved || !isCode(saved.code) || !Array.isArray(saved.members) || !saved.members.some(m => m.role === 'host')) {
+    store(LS.host, null);
+    return false;
+  }
+  const room = saved;
+  room.settings = { maxPerUser: 3, locked: false, ...room.settings };
+  room.queue = Array.isArray(room.queue) ? room.queue : [];
+  room.history = Array.isArray(room.history) ? room.history : [];
+  room.banned = Array.isArray(room.banned) ? room.banned : [];
+  room.identities = room.identities && typeof room.identities === 'object' ? room.identities : {};
+  room.volume = Number.isFinite(room.volume) ? room.volume : 70;
+  for (const m of room.members) {
+    m.peerId = null;
+    if (m.role === 'host') {
+      m.deviceId = DEVICE_ID;
+      m.online = true;
+      room.identities[DEVICE_ID] = { memberId: m.memberId, role: 'host' };
+    } else {
+      m.online = false; // 成員要重新連線才算在線
+    }
+  }
+  room.isPaused = true; // 要等房主再按一次「開始播放」
+  H.room = room;
+  const pos = load(LS.pos);
+  H.restorePos = pos && room.nowPlaying && pos.uid === room.nowPlaying.uid ? Number(pos.t) || 0 : 0;
+  startHost(true);
+  for (const m of room.members) if (!m.online) startOfflineTimer(m.deviceId);
+  toast('已恢復房間，請按「開始播放」繼續');
+  return true;
+}
+
+function startHost(isRestore) {
+  mode = 'host';
+  H.restoring = isRestore;
+  showScreen('host');
+  bindHostUI();
+  renderHost();
+  loadYouTubeApi();
+  openHostPeer();
+  setInterval(hostSweep, PING_MS);
+  setInterval(savePlayPosition, 5000);
+}
+
+/* ---------- PeerJS ---------- */
+function openHostPeer() {
+  if (H.closing) return;
+  setStatus('yellow');
+  const peer = new Peer(PEER_PREFIX + H.room.code, { debug: 1 });
+  H.peer = peer;
+  peer.on('open', () => {
+    if (H.peer !== peer) return;
+    H.peerOpenedOnce = true;
+    setStatus('green');
+    persist();
+  });
+  peer.on('connection', conn => { if (H.peer === peer) onHostConnection(conn); });
+  peer.on('disconnected', () => {
+    if (H.peer !== peer || H.closing) return;
+    setStatus('yellow');
+    hostScheduleReconnect();
+  });
+  peer.on('error', err => {
+    if (H.peer !== peer || H.closing) return;
+    if (err.type === 'unavailable-id') {
+      peer.destroy();
+      if (!H.peerOpenedOnce && !H.restoring) {
+        // 新房間撞到別人正在用的房號：換一個
+        H.room.code = genCode();
+        renderHost();
+        openHostPeer();
+      } else {
+        // F24：配對伺服器還沒釋放舊房號，3 秒後重試
+        setStatus('yellow');
+        toast('等待配對伺服器釋放房號，稍後自動重試…');
+        clearTimeout(H.retryTimer);
+        H.retryTimer = setTimeout(openHostPeer, RETRY_MS);
+      }
+      return;
+    }
+    if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)) {
+      setStatus('red');
+      hostScheduleReconnect();
+      return;
+    }
+    console.warn('PeerJS 錯誤：', err.type, err);
+  });
+}
+
+function hostScheduleReconnect() {
+  clearTimeout(H.retryTimer);
+  H.retryTimer = setTimeout(() => {
+    const p = H.peer;
+    if (!p || H.closing) return;
+    if (p.destroyed) openHostPeer();
+    else if (p.disconnected) p.reconnect();
+  }, RETRY_MS);
+}
+
+function onHostConnection(conn) {
+  const entry = { deviceId: null, lastSeen: Date.now() };
+  H.entries.set(conn, entry);
+  conn.on('data', msg => onHostData(conn, msg));
+  conn.on('close', () => onHostConnClosed(conn));
+  conn.on('error', () => onHostConnClosed(conn));
+  // 連上後 10 秒內沒送 join 就斷開
+  setTimeout(() => { if (H.entries.get(conn) === entry && !entry.deviceId) closeConn(conn); }, CONNECT_TIMEOUT_MS);
+}
+
+function closeConn(conn, delay = 0) {
+  setTimeout(() => { try { conn.close(); } catch { /* 忽略 */ } onHostConnClosed(conn); }, delay);
+}
+
+function onHostConnClosed(conn) {
+  const entry = H.entries.get(conn);
+  if (!entry) return;
+  H.entries.delete(conn);
+  const { deviceId } = entry;
+  if (deviceId && H.active.get(deviceId) === conn) {
+    H.active.delete(deviceId);
+    const m = findByDevice(deviceId);
+    if (m && m.role !== 'host') {
+      m.online = false; // F22：標示離線，保留 5 分鐘
+      m.peerId = null;
+      startOfflineTimer(deviceId);
+      broadcast();
+    }
+  }
+}
+
+// 把某裝置目前的連線踢下線（離開、被踢、在別處重連）
+function dropConnection(deviceId, finalMsg) {
+  const conn = H.active.get(deviceId);
+  if (!conn) return;
+  H.active.delete(deviceId);
+  const entry = H.entries.get(conn);
+  if (entry) entry.deviceId = null; // 之後這條連線關閉時，不再當成斷線處理
+  if (finalMsg) send(conn, finalMsg);
+  closeConn(conn, 500);
+}
+
+function startOfflineTimer(deviceId) {
+  clearOfflineTimer(deviceId);
+  H.offlineTimers.set(deviceId, setTimeout(() => {
+    H.offlineTimers.delete(deviceId);
+    const m = findByDevice(deviceId);
+    if (m && !m.online) {
+      // 逾時才移除；歌曲留在佇列，identities 也保留（F22）
+      H.room.members = H.room.members.filter(x => x !== m);
+      broadcast();
+    }
+  }, OFFLINE_KEEP_MS));
+}
+
+function clearOfflineTimer(deviceId) {
+  clearTimeout(H.offlineTimers.get(deviceId));
+  H.offlineTimers.delete(deviceId);
+}
+
+function removeMember(deviceId) {
+  clearOfflineTimer(deviceId);
+  H.room.members = H.room.members.filter(m => m.deviceId !== deviceId);
+}
+
+// 心跳：太久沒消息的連線視為斷線（手機鎖屏時 close 事件常常不會觸發）
+function hostSweep() {
+  const now = Date.now();
+  for (const [conn, entry] of H.entries) {
+    if (now - entry.lastSeen > HOST_TIMEOUT_MS) closeConn(conn);
+  }
+}
+
+/* ---------- 處理成員訊息 ---------- */
+function onHostData(conn, msg) {
+  const entry = H.entries.get(conn);
+  if (!entry || !msg || typeof msg !== 'object' || typeof msg.type !== 'string') return;
+  entry.lastSeen = Date.now();
+
+  if (!entry.deviceId) {
+    if (msg.type === 'join') handleJoin(conn, entry, msg);
+    return;
+  }
+  if (H.active.get(entry.deviceId) !== conn) return; // 已被取代的舊連線
+  if (msg.type === 'ping') { send(conn, { type: 'pong' }); return; }
+
+  // 6 之 4：發送者身分由連線決定，不採信訊息內容
+  const sender = findByDevice(entry.deviceId);
+  if (!sender) return;
+  handleRequest(sender, msg, conn);
+}
+
+function handleJoin(conn, entry, msg) {
+  const room = H.room;
+  const reject = message => { send(conn, { type: 'error', fatal: true, message }); closeConn(conn, 500); };
+  const name = cleanName(msg.name);
+  const deviceId = typeof msg.deviceId === 'string' ? msg.deviceId : '';
+
+  if (!/^[A-Za-z0-9]{16,64}$/.test(deviceId)) return reject('裝置資料錯誤，請重新整理後再試');
+  if (!name) return reject('請輸入暱稱');
+  if (room.banned.includes(deviceId)) return reject('你已被房主踢出這個房間，無法再加入'); // F18
+  const known = room.identities[deviceId];
+  if (deviceId === DEVICE_ID || (known && known.role === 'host')) {
+    return reject('這台裝置是本房間的房主，請用其他裝置或瀏覽器加入');
+  }
+  // F23：只有不同裝置用相同暱稱才拒絕
+  if (room.members.some(m => m.deviceId !== deviceId && sameName(m.name, name))) {
+    return reject('這個暱稱已經有人使用，請換一個');
+  }
+
+  // 同一裝置的舊連線（另一個分頁，或房主還沒發現已斷線的舊連線）
+  if (H.active.has(deviceId)) {
+    dropConnection(deviceId, { type: 'error', fatal: true, replaced: true, message: '這個房間已在其他分頁開啟' });
+  }
+
+  // F22：同一裝置永遠沿用同一個 memberId 與角色
+  let identity = known;
+  if (!identity) {
+    identity = { memberId: newMemberId(), role: 'member' };
+    room.identities[deviceId] = identity;
+  }
+  let m = findByDevice(deviceId);
+  if (!m) {
+    m = { memberId: identity.memberId, deviceId, peerId: null, name, role: identity.role, online: true };
+    room.members.push(m);
+  }
+  m.name = name;
+  m.role = identity.role;
+  m.peerId = conn.peer;
+  m.online = true;
+  clearOfflineTimer(deviceId);
+
+  entry.deviceId = deviceId;
+  H.active.set(deviceId, conn);
+  send(conn, { type: 'welcome', memberId: m.memberId, room: toPublicRoom(room) });
+  broadcast();
+}
+
+// sender 是房主自己時 conn 為 null，結果直接用 toast 顯示
+function handleRequest(sender, msg, conn) {
+  const room = H.room;
+  const reply = (type, message) => {
+    if (conn) send(conn, { type, message });
+    else toast(message, type === 'error' ? 'error' : 'info');
+  };
+  const deny = () => reply('error', '你沒有權限執行這個操作');
+  const mgr = isManager(sender.role);
+  const findSong = uid => (typeof uid === 'string' ? room.queue.findIndex(s => s.uid === uid) : -1);
+
+  switch (msg.type) {
+    case 'add':
+      return addSong(sender, msg.videoId, msg.title, reply);
+
+    case 'remove': { // F10、F15
+      const i = findSong(msg.uid);
+      if (i < 0) return reply('error', '這首歌已經不在佇列中');
+      if (room.queue[i].addedBy !== sender.memberId && !mgr) return deny();
+      room.queue.splice(i, 1);
+      return broadcast();
+    }
+
+    case 'playNext': { // F16
+      if (!mgr) return deny();
+      const i = findSong(msg.uid);
+      if (i < 0) return reply('error', '這首歌已經不在佇列中');
+      const [song] = room.queue.splice(i, 1);
+      room.queue.unshift(song);
+      return broadcast();
+    }
+
+    case 'skip': // F17
+      if (!mgr) return deny();
+      if (!room.nowPlaying && !room.queue.length) return reply('error', '目前沒有歌曲可以跳過');
+      return advance();
+
+    case 'pause':
+      if (!mgr) return deny();
+      if (!room.nowPlaying) return reply('error', '目前沒有播放中的歌曲');
+      room.isPaused = true;
+      if (H.ytReady) H.player.pauseVideo();
+      return broadcast();
+
+    case 'resume':
+      if (!mgr) return deny();
+      if (!room.nowPlaying) return reply('error', '目前沒有播放中的歌曲');
+      if (!H.unlocked) return reply('error', '房主需要先在播放裝置上按「開始播放」');
+      room.isPaused = false;
+      if (H.ytReady) H.player.playVideo();
+      return broadcast();
+
+    case 'volume': {
+      if (!mgr) return deny();
+      const v = Math.round(Number(msg.value));
+      if (!Number.isFinite(v)) return reply('error', '音量數值錯誤');
+      room.volume = Math.min(100, Math.max(0, v));
+      if (H.ytReady) H.player.setVolume(room.volume);
+      return broadcast();
+    }
+
+    case 'leave': // F5
+      if (sender.role === 'host') return;
+      removeMember(sender.deviceId);
+      dropConnection(sender.deviceId);
+      return broadcast();
+  }
+}
+
+function addSong(sender, videoId, title, reply) {
+  const room = H.room;
+  const isHost = sender.role === 'host';
+  if (!isVideoId(videoId)) return reply('error', '不是有效的 YouTube 影片');
+  if (room.settings.locked && !isHost) return reply('error', '房主已鎖定點歌'); // F20
+  if (room.queue.some(s => s.videoId === videoId)) return reply('error', '這首歌已經在佇列中了'); // F9
+  if (room.nowPlaying && room.nowPlaying.videoId === videoId) return reply('error', '這首歌正在播放');
+  if (!isHost) { // F8：房主不受每人上限限制
+    const mine = room.queue.filter(s => s.addedBy === sender.memberId).length;
+    if (mine >= room.settings.maxPerUser) {
+      return reply('error', `每人最多只能有 ${room.settings.maxPerUser} 首未播歌曲`);
+    }
+  }
+  const song = {
+    uid: randomString(12),
+    videoId,
+    title: cleanTitle(title),
+    addedBy: sender.memberId,
+    addedByName: sender.name,
+  };
+  room.queue.push(song);
+  reply('notice', '點歌成功：' + songTitle(song));
+  if (!room.nowPlaying && H.unlocked) advance();
+  else broadcast();
+}
+
+/* ---------- 房主本機操作（不經網路） ---------- */
+function setRole(memberId, role) { // F19：members 與 identities 一起更新
+  const m = findMember(memberId);
+  if (!m || m.role === 'host') return;
+  m.role = role;
+  H.room.identities[m.deviceId] = { memberId: m.memberId, role };
+  broadcast();
+}
+
+function hostToggleAdmin(memberId) {
+  const m = findMember(memberId);
+  if (!m) return;
+  setRole(memberId, m.role === 'admin' ? 'member' : 'admin');
+  toast(m.role === 'admin' ? `已將 ${m.name} 設為管理員` : `已收回 ${m.name} 的管理員權限`);
+}
+
+function hostKick(memberId) { // F18
+  const m = findMember(memberId);
+  if (!m || m.role === 'host') return;
+  if (!confirm(`確定要踢出「${m.name}」嗎？\n對方點的未播歌曲會一併移除，並且無法再加入這個房間。`)) return;
+  const room = H.room;
+  if (!room.banned.includes(m.deviceId)) room.banned.push(m.deviceId);
+  room.queue = room.queue.filter(s => s.addedBy !== m.memberId);
+  removeMember(m.deviceId);
+  dropConnection(m.deviceId, { type: 'kicked' });
+  toast(`已踢出 ${m.name}`);
+  broadcast();
+}
+
+function hostReAdd(uid) { // F14
+  const song = H.room.history.find(s => s.uid === uid);
+  if (song) addSong(hostMe(), song.videoId, song.title, (type, message) => toast(message, type === 'error' ? 'error' : 'info'));
+}
+
+function hostCloseRoom() { // F5
+  if (!confirm('確定要關閉房間嗎？所有成員都會離開，佇列也會清除。')) return;
+  H.closing = true;
+  for (const conn of H.active.values()) send(conn, { type: 'closed' });
+  store(LS.host, null);
+  store(LS.pos, null);
+  setTimeout(() => {
+    try { H.peer && H.peer.destroy(); } catch { /* 忽略 */ }
+    goHome('房間已關閉');
+  }, 600);
+}
+
+/* ---------- 播放（F11、F12） ---------- */
+function loadYouTubeApi() {
+  window.onYouTubeIframeAPIReady = () => {
+    H.player = new YT.Player('yt-player', {
+      width: '100%',
+      height: '100%',
+      playerVars: { playsinline: 1, rel: 0 },
+      events: { onReady: onPlayerReady, onStateChange: onPlayerState, onError: onPlayerError },
+    });
+  };
+  const s = document.createElement('script');
+  s.src = 'https://www.youtube.com/iframe_api';
+  s.onerror = () => toast('無法載入 YouTube 播放器，請檢查網路後重新整理', 'error');
+  document.head.append(s);
+}
+
+function onPlayerReady() {
+  H.ytReady = true;
+  H.player.setVolume(H.room.volume);
+  if (H.room.nowPlaying) loadCurrent();
+  else if (H.unlocked && H.room.queue.length) advance();
+}
+
+function loadCurrent() {
+  if (!H.ytReady) return;
+  const s = H.room.nowPlaying;
+  if (!s) { H.player.stopVideo(); return; }
+  const opts = { videoId: s.videoId, startSeconds: H.restorePos || 0 };
+  if (H.unlocked && !H.room.isPaused) H.player.loadVideoById(opts);
+  else H.player.cueVideoById(opts);
+}
+
+// 換下一首；skipHistory 用在無法播放的影片
+function advance(skipHistory = false) {
+  const room = H.room;
+  if (room.nowPlaying && !skipHistory) {
+    room.history.unshift(room.nowPlaying);
+    room.history = room.history.slice(0, HISTORY_MAX);
+  }
+  room.nowPlaying = room.queue.shift() || null;
+  room.isPaused = !H.unlocked;
+  H.restorePos = 0;
+  store(LS.pos, null);
+  loadCurrent();
+  broadcast();
+}
+
+function onPlayerState(e) {
+  const S = YT.PlayerState;
+  if (e.data === S.ENDED) {
+    advance();
+  } else if (e.data === S.PLAYING) {
+    let changed = false;
+    if (!H.unlocked) { H.unlocked = true; changed = true; } // 房主直接點了播放器
+    if (H.room.isPaused) { H.room.isPaused = false; changed = true; }
+    if (changed) broadcast();
+  } else if (e.data === S.PAUSED) {
+    if (!H.room.isPaused) { H.room.isPaused = true; broadcast(); }
+  }
+}
+
+function onPlayerError() {
+  const bad = H.room.nowPlaying;
+  if (bad) notifyAll(`「${songTitle(bad)}」無法播放（可能禁止嵌入或已下架），已自動跳過`);
+  advance(true);
+}
+
+function hostUnlock() {
+  H.unlocked = true;
+  const room = H.room;
+  if (room.nowPlaying) {
+    room.isPaused = false;
+    if (H.ytReady) H.player.loadVideoById({ videoId: room.nowPlaying.videoId, startSeconds: H.restorePos || 0 });
+    broadcast();
+  } else if (room.queue.length) {
+    advance();
+  } else {
+    renderHost();
+  }
+}
+
+function savePlayPosition() {
+  if (!H.ytReady || !H.unlocked || !H.room.nowPlaying || H.closing) return;
+  const t = H.player.getCurrentTime ? H.player.getCurrentTime() : 0;
+  store(LS.pos, { uid: H.room.nowPlaying.uid, t: Math.floor(t) });
+}
+
+/* ---------- 房主畫面 ---------- */
+let hostUIBound = false;
+function bindHostUI() {
+  if (hostUIBound) return;
+  hostUIBound = true;
+  const local = msg => handleRequest(hostMe(), msg, null);
+
+  $('#btn-start').addEventListener('click', hostUnlock);
+  $('#host-pause').addEventListener('click', () => {
+    if (!H.unlocked) return hostUnlock();
+    local({ type: H.room.isPaused ? 'resume' : 'pause' });
+  });
+  $('#host-skip').addEventListener('click', () => local({ type: 'skip' }));
+  const vol = $('#host-volume');
+  vol.addEventListener('input', () => {
+    vol._touched = Date.now();
+    if (H.ytReady) H.player.setVolume(Number(vol.value));
+  });
+  vol.addEventListener('change', () => local({ type: 'volume', value: vol.value }));
+
+  $('#btn-close-room').addEventListener('click', hostCloseRoom);
+  $('#btn-copy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText($('#share-link').textContent);
+      toast('已複製加入連結');
+    } catch {
+      toast('無法複製，請手動選取連結', 'error');
+    }
+  });
+
+  $('#set-max').addEventListener('change', e => {
+    const v = Math.min(20, Math.max(1, Math.round(Number(e.target.value)) || 3));
+    H.room.settings.maxPerUser = v;
+    e.target.value = v;
+    broadcast();
+  });
+  $('#set-lock').addEventListener('change', e => {
+    H.room.settings.locked = e.target.checked;
+    toast(e.target.checked ? '已鎖定點歌' : '已開放點歌');
+    broadcast();
+  });
+
+  bindAddForm($('#host-add'), (videoId, title) => {
+    const before = H.room.queue.length;
+    addSong(hostMe(), videoId, title, (type, message) => toast(message, type === 'error' ? 'error' : 'info'));
+    return H.room.queue.length !== before || H.room.nowPlaying?.videoId === videoId;
+  });
+}
+
+function renderShare() {
+  if (H.qrCode === H.room.code) return;
+  H.qrCode = H.room.code;
+  const link = baseUrl() + '#' + H.room.code; // F2
+  $('#share-link').textContent = link;
+  const box = $('#qr');
+  box.replaceChildren();
+  if (window.QRCode) {
+    new QRCode(box, { text: link, width: 296, height: 296, correctLevel: QRCode.CorrectLevel.M });
+  } else {
+    box.append(h('span', { class: 'small', style: 'color:#333' }, 'QR Code 載入失敗'));
+  }
+}
+
+function renderHost() {
+  const room = H.room;
+  const root = $('#screen-host');
+  const me = hostMe();
+  $('[data-code]', root).textContent = room.code;
+  renderShare();
+  renderNowPlaying($('[data-np]', root), room, '請按「開始播放」');
+  $('#start-overlay').hidden = H.unlocked;
+
+  const pauseBtn = $('#host-pause');
+  pauseBtn.textContent = room.isPaused ? '繼續' : '暫停';
+  pauseBtn.disabled = !room.nowPlaying;
+  $('#host-skip').disabled = !room.nowPlaying && !room.queue.length;
+  setSlider($('#host-volume'), room.volume);
+
+  const viewer = { memberId: me.memberId, role: 'host', act: msg => handleRequest(hostMe(), msg, null) };
+  renderQueue($('[data-queue]', root), room, viewer);
+  $('[data-queue-count]', root).textContent = room.queue.length ? `${room.queue.length} 首` : '';
+  renderMembers($('[data-members]', root), room, viewer, true);
+  $('[data-member-count]', root).textContent = memberCountText(room);
+
+  const maxInput = $('#set-max');
+  if (document.activeElement !== maxInput) maxInput.value = room.settings.maxPerUser;
+  $('#set-lock').checked = room.settings.locked;
+  $('[data-lock-hint]', root).hidden = !room.settings.locked;
+
+  const items = room.history.map(s => h('li', null,
+    thumb(s.videoId),
+    h('div', { class: 'song-info' },
+      h('div', { class: 'title' }, songTitle(s)),
+      h('div', { class: 'muted small' }, s.addedByName)),
+    h('div', { class: 'actions' },
+      h('button', { class: 'sm', onclick: () => hostReAdd(s.uid) }, '重新加入'))));
+  $('#history-list').replaceChildren(...(items.length ? items : [h('li', { class: 'empty' }, '還沒有播放過的歌曲')]));
+}
+
+/* =====================================================================
+ * 成員端
+ * ===================================================================== */
+const M = {
+  code: null,
+  name: null,
+  memberId: null,
+  room: null,
+  peer: null,
+  conn: null,
+  active: false,
+  everWelcomed: false, // 曾成功進入房間（之後連不上就持續重試，而不是回首頁）
+  waitingHost: false,
+  retryTimer: null,
+  connectTimer: null,
+  lastMsg: 0,
+};
+
+function memberStart(code, name, isResume) {
+  mode = 'member';
+  M.code = code;
+  M.name = name;
+  M.active = true;
+  M.everWelcomed = isResume; // 重新整理後自動回房：房主可能也正在重新整理，所以不直接判定房間不存在
+  store(LS.name, name);
+  window.history.replaceState(null, '', baseUrl() + '#' + code);
+  showScreen('member');
+  bindMemberUI();
+  renderMember();
+  setBanner('連線中…');
+  setStatus('yellow');
+  memberConnect();
+  setInterval(memberHeartbeat, PING_MS);
+}
+
+function setBanner(text) {
+  const el = $('#member-banner');
+  el.textContent = text || '';
+  el.hidden = !text;
+}
+
+function memberConnect() {
+  clearTimeout(M.retryTimer);
+  clearTimeout(M.connectTimer);
+  if (!M.active) return;
+  if (M.conn) {
+    const old = M.conn;
+    M.conn = null;
+    try { old.close(); } catch { /* 忽略 */ }
+  }
+  const p = M.peer;
+  if (!p || p.destroyed) { createMemberPeer(); return; } // open 後會再呼叫 memberConnect
+  if (p.disconnected) { p.reconnect(); return; }
+  if (!p.open) return;
+
+  const conn = p.connect(PEER_PREFIX + M.code, { serialization: 'json', reliable: true });
+  M.conn = conn;
+  M.connectTimer = setTimeout(() => {
+    if (M.conn === conn && !conn.open) {
+      memberConnLost(conn, '無法連線到房主，重試中…（若持續失敗，可能是網路擋住了 WebRTC，可改用手機網路）');
+    }
+  }, CONNECT_TIMEOUT_MS);
+  conn.on('open', () => {
+    if (M.conn !== conn) return;
+    clearTimeout(M.connectTimer);
+    M.lastMsg = Date.now();
+    conn.send({ type: 'join', name: M.name, deviceId: DEVICE_ID });
+  });
+  conn.on('data', msg => { if (M.conn === conn) onHostMessage(msg); });
+  conn.on('close', () => memberConnLost(conn));
+  conn.on('error', () => memberConnLost(conn));
+}
+
+function createMemberPeer() {
+  const peer = new Peer({ debug: 1 });
+  M.peer = peer;
+  // 與配對伺服器重新連上時，若和房主的資料通道還正常，就不必重連
+  peer.on('open', () => { if (M.peer === peer && !(M.conn && M.conn.open)) memberConnect(); });
+  peer.on('disconnected', () => {
+    if (M.peer !== peer || !M.active) return;
+    // 只是和配對伺服器斷開，和房主的資料通道可能仍正常，所以只重連配對伺服器
+    setTimeout(() => { if (M.peer === peer && !peer.destroyed && peer.disconnected) peer.reconnect(); }, RETRY_MS);
+  });
+  peer.on('error', err => {
+    if (M.peer !== peer || !M.active) return;
+    if (err.type === 'peer-unavailable') {
+      if (!M.everWelcomed) return goHome('找不到這個房間：房號不存在，或房間已關閉'); // F3
+      M.waitingHost = true; // F5：房主網頁中斷
+      setBanner('等待房主重新連線…');
+      setStatus('yellow');
+    } else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)) {
+      setBanner('網路中斷，重新連線中…');
+      setStatus('red');
+    } else {
+      console.warn('PeerJS 錯誤：', err.type, err);
+    }
+    scheduleMemberRetry();
+  });
+}
+
+function scheduleMemberRetry() {
+  clearTimeout(M.retryTimer);
+  M.retryTimer = setTimeout(memberConnect, RETRY_MS); // F22：每 3 秒重試
+}
+
+function memberConnLost(conn, message) {
+  if (conn !== M.conn || !M.active) return;
+  M.conn = null;
+  try { conn.close(); } catch { /* 忽略 */ }
+  setStatus('yellow');
+  setBanner(message || (M.waitingHost ? '等待房主重新連線…' : '連線中斷，重新連線中…'));
+  scheduleMemberRetry();
+}
+
+function memberHeartbeat() {
+  if (!M.active || !M.conn || !M.conn.open || !M.memberId) return;
+  if (Date.now() - M.lastMsg > MEMBER_TIMEOUT_MS) {
+    memberConnLost(M.conn);
+    return;
+  }
+  send(M.conn, { type: 'ping' });
+}
+
+function onHostMessage(msg) {
+  if (!msg || typeof msg !== 'object') return;
+  M.lastMsg = Date.now();
+  switch (msg.type) {
+    case 'pong':
+      return;
+    case 'welcome':
+      M.memberId = msg.memberId;
+      M.everWelcomed = true;
+      M.waitingHost = false;
+      store(LS.last, { code: M.code, name: M.name }); // F22：重新整理後自動回房
+      setStatus('green');
+      setBanner(null);
+      applyState(msg.room, true);
+      return;
+    case 'state':
+      if (M.memberId) applyState(msg.room, false);
+      return;
+    case 'error':
+      if (msg.replaced) return memberStopReplaced(msg.message);
+      if (msg.fatal) return goHome(msg.message, true);
+      toast(msg.message, 'error');
+      return;
+    case 'notice':
+      toast(msg.message);
+      return;
+    case 'kicked':
+      return goHome('你已被房主踢出房間');
+    case 'closed':
+      return goHome('房間已關閉');
+  }
+}
+
+// 同一裝置在別的分頁重新加入：這個分頁停止連線，但不清除 localStorage（新分頁還要用）
+function memberStopReplaced(message) {
+  M.active = false;
+  clearTimeout(M.retryTimer);
+  try { M.conn && M.conn.close(); } catch { /* 忽略 */ }
+  try { M.peer && M.peer.destroy(); } catch { /* 忽略 */ }
+  M.conn = null;
+  setStatus('red');
+  setBanner(message + '，這個分頁已停止連線。重新整理可改在這裡繼續。');
+}
+
+function applyState(room, isWelcome) {
+  if (!room || !Array.isArray(room.members)) return;
+  const myRole = r => (r && r.members.find(m => m.memberId === M.memberId) || {}).role;
+  const before = myRole(M.room);
+  M.room = room;
+  const after = myRole(room);
+  if (!isWelcome && before && after && before !== after) {
+    toast(after === 'admin' ? '你被設為管理員了' : '你的管理員權限已被收回');
+  }
+  renderMember();
+}
+
+function memberSend(msg) {
+  if (M.conn && M.conn.open && M.memberId) {
+    send(M.conn, msg);
+    return true;
+  }
+  toast('尚未連線到房主，請稍候', 'error');
+  return false;
+}
+
+function memberLeave() {
+  if (M.conn && M.conn.open) send(M.conn, { type: 'leave' });
+  M.active = false;
+  setTimeout(() => goHome(''), 300);
+}
+
+let memberUIBound = false;
+function bindMemberUI() {
+  if (memberUIBound) return;
+  memberUIBound = true;
+  $('#btn-leave').addEventListener('click', memberLeave);
+  $('#m-pause').addEventListener('click', () => {
+    if (M.room) memberSend({ type: M.room.isPaused ? 'resume' : 'pause' });
+  });
+  $('#m-skip').addEventListener('click', () => memberSend({ type: 'skip' }));
+  const vol = $('#m-volume');
+  vol.addEventListener('input', () => { vol._touched = Date.now(); });
+  vol.addEventListener('change', () => memberSend({ type: 'volume', value: Number(vol.value) }));
+  bindAddForm($('#member-add'), (videoId, title) => memberSend({ type: 'add', videoId, title }));
+}
+
+function renderMember() {
+  const root = $('#screen-member');
+  const room = M.room;
+  $('[data-code]', root).textContent = M.code;
+  if (!room) {
+    $('[data-np]', root).replaceChildren(h('p', { class: 'muted np-empty' }, '連線中…'));
+    return;
+  }
+  const me = room.members.find(m => m.memberId === M.memberId);
+  const role = me ? me.role : 'member';
+  const mgr = isManager(role);
+
+  renderNowPlaying($('[data-np]', root), room, '等待房主開始播放');
+  $('[data-admin-controls]', root).hidden = !mgr;
+  $('#m-pause').textContent = room.isPaused ? '繼續' : '暫停';
+  $('#m-pause').disabled = !room.nowPlaying;
+  $('#m-skip').disabled = !room.nowPlaying && !room.queue.length;
+  setSlider($('#m-volume'), room.volume);
+
+  const viewer = { memberId: M.memberId, role, act: memberSend };
+  renderQueue($('[data-queue]', root), room, viewer);
+  $('[data-queue-count]', root).textContent = room.queue.length ? `${room.queue.length} 首` : '';
+  renderMembers($('[data-members]', root), room, viewer, false);
+  $('[data-member-count]', root).textContent = memberCountText(room);
+
+  $('[data-lock-hint]', root).hidden = !room.settings.locked;
+  $('#member-add button').disabled = room.settings.locked;
+  const mine = room.queue.filter(s => s.addedBy === M.memberId).length;
+  $('[data-limit-hint]', root).textContent = `你目前有 ${mine} / ${room.settings.maxPerUser} 首未播歌曲`;
+}
+
+/* =====================================================================
+ * 首頁與啟動
+ * ===================================================================== */
+function codeFromHash() {
+  const code = normalizeCode(decodeURIComponent(location.hash.slice(1)));
+  return isCode(code) ? code : null;
+}
+
+function showHomeMessage(text) {
+  const el = $('#home-msg');
+  el.textContent = text || '';
+  el.hidden = !text;
+}
+
+function bindHomeUI() {
+  const nameInput = $('#home-name');
+  const codeInput = $('#home-code');
+  const getName = () => {
+    const name = cleanName(nameInput.value);
+    if (!name) { showHomeMessage('請先輸入暱稱'); nameInput.focus(); }
+    return name;
+  };
+  $('#btn-create').addEventListener('click', () => {
+    const name = getName();
+    if (!name) return;
+    store(LS.name, name);
+    hostCreate(name);
+  });
+  const join = () => {
+    const name = getName();
+    if (!name) return;
+    const code = normalizeCode(codeInput.value);
+    if (!isCode(code)) { showHomeMessage('房號是 6 碼英文和數字，請再確認一次'); codeInput.focus(); return; }
+    memberStart(code, name, false);
+  };
+  $('#btn-join').addEventListener('click', join);
+  codeInput.addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
+  codeInput.addEventListener('input', () => {
+    const v = normalizeCode(codeInput.value).slice(0, 6);
+    if (codeInput.value !== v) codeInput.value = v;
+  });
+  window.addEventListener('hashchange', () => {
+    const code = codeFromHash();
+    if (mode === 'home' && code) codeInput.value = code;
+  });
+}
+
+function init() {
+  let flash = '';
+  try { flash = sessionStorage.getItem(FLASH_KEY) || ''; sessionStorage.removeItem(FLASH_KEY); } catch { /* 忽略 */ }
+
+  if (typeof Peer === 'undefined') {
+    showScreen('home');
+    showHomeMessage('無法載入連線元件（PeerJS），請檢查網路後重新整理。');
+    $('#btn-create').disabled = true;
+    $('#btn-join').disabled = true;
+    return;
+  }
+
+  bindHomeUI();
+  const savedName = load(LS.name);
+  if (typeof savedName === 'string') $('#home-name').value = savedName;
+  const hashCode = codeFromHash();
+  if (hashCode) $('#home-code').value = hashCode;
+
+  // F24：房主重新整理後恢復房間
+  if (hostRestore(load(LS.host))) return;
+
+  // F22：成員重新整理後自動回到房間
+  const last = load(LS.last);
+  if (last && isCode(last.code) && cleanName(last.name) && (!hashCode || hashCode === last.code)) {
+    memberStart(last.code, cleanName(last.name), true);
+    return;
+  }
+
+  showScreen('home');
+  showHomeMessage(flash);
+}
+
+document.addEventListener('visibilitychange', () => {
+  // 手機解鎖回到畫面時，立刻檢查連線（F22）
+  if (document.visibilityState !== 'visible' || mode !== 'member' || !M.active) return;
+  if (!M.conn || !M.conn.open || Date.now() - M.lastMsg > PING_MS * 2) memberConnect();
+  else send(M.conn, { type: 'ping' });
+});
+window.addEventListener('online', () => {
+  if (mode === 'member' && M.active && !(M.conn && M.conn.open)) memberConnect();
+  if (mode === 'host') hostScheduleReconnect();
+});
+window.addEventListener('offline', () => { if (mode !== 'home') setStatus('red'); });
+
+init();
+</script>
+</body>
+</html>
